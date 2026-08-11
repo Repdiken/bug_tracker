@@ -50,3 +50,27 @@ class IsProjectAdmin(BasePermission):
             role="admin",
             is_deleted=False,
         ).exists()
+
+
+class CanDeleteContributor(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        project = obj.project
+
+        # Nobody can delete themselves
+        if obj.user == request.user:
+            return False
+
+        # Owner can delete any other contributor
+        if project.owner == request.user:
+            return True
+
+        # Admins cannot delete other admins
+        if obj.role == "admin":
+            return False
+
+        # Admin can delete regular members
+        return project.contributors.filter(
+            user=request.user,
+            role="admin",
+            is_deleted=False,
+        ).exists()

@@ -5,7 +5,7 @@ from .views import (
     CommentListCreateView,
     CommentDetailUpdateDelete,
     IssueAssagineeListCreateView,
-    IssueAssigneeDeleteView,
+    IssueAssigneeDetailDeleteView,
 )
 
 urlpatterns = [
@@ -36,7 +36,7 @@ urlpatterns = [
     ),
     path(
         "projects/<int:project_id>/issues/<int:issue_id>/assignees/<int:assignee_id>/",
-        IssueAssigneeDeleteView.as_view(),
+        IssueAssigneeDetailDeleteView.as_view(),
         name="assignee_detail",
     ),
 ]

@@ -328,6 +328,15 @@ Each comment belongs to
 # API Structure
 
 ```
+auth/users
+│
+├── GET
+└── POST
+
+auth/jwt/create
+│
+└── POST
+
 projects/
 │
 ├── GET
@@ -388,18 +397,16 @@ projects/<project_id>/issues/<issue_id>/assignees/<assignee_id>/
 
 The API uses JWT authentication.
 
-Typical workflow
 
-1. Register
-2. Login
-3. Receive Access Token
-4. Include token
+1. Register in **auth/users/** by filing the cardentials
+2. Receive an Access Token in **auth/jwt/create**
+3. Include the Token using Header Editor Light extension, Postman or any other method of your choice in every request
+
 
 ```
 Authorization: Bearer <access_token>
 ```
 
-in every protected request.
 
 ---
 
@@ -540,4 +547,4 @@ Possible future enhancements include
 
 # License
 
-This project was created for educational purposes and to practice secure backend development using Django REST Framework.
+This project was created for educational purposes and to practice secure backend development and web security using Django REST Framework.

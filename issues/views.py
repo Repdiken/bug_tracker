@@ -26,7 +26,14 @@ from rest_framework.generics import (
 
 
 class IssueListCreateView(ListCreateAPIView):
-    permission_classes = [IsAuthenticated, IsProjectContributor]
+    permission_classes = [IsAuthenticated, IsProjectAdmin | IsProjectOwner]
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            permission_classes = [IsAuthenticated, IsProjectContributor]
+        else:
+            permission_classes = [IsAuthenticated, IsProjectAdmin | IsProjectOwner]
+        return [permission() for permission in permission_classes]
 
     def get_serializer_class(self):
         if self.request.method == "GET":
@@ -73,7 +80,6 @@ class IssueDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
         return [permission() for permission in permission_classes]
 
 
-
 class IssueAssagineeListCreateView(ListCreateAPIView):
     serializer_class = IssueAssigneeListCreateSerializer
 
@@ -109,7 +115,7 @@ class IssueAssagineeListCreateView(ListCreateAPIView):
         serializer.save(issue=self.get_issue())
 
 
-class IssueAssigneeDeleteView(RetrieveDestroyAPIView):
+class IssueAssigneeDetailDeleteView(RetrieveDestroyAPIView):
     serializer_class = IssueAssigneeDetailSerializer
     lookup_url_kwarg = "assignee_id"
 
@@ -124,7 +130,12 @@ class IssueAssigneeDeleteView(RetrieveDestroyAPIView):
             is_deleted=False,
         )
 
-    permission_classes = [IsAuthenticated, IsProjectAdmin | IsProjectOwner]
+    def get_permissions(self):
+        if self.request.method == "GET":
+            permission_classes = [IsAuthenticated, IsProjectContributor]
+        else:
+            permission_classes = [IsAuthenticated, IsProjectAdmin | IsProjectOwner]
+        return [permission() for permission in permission_classes]
 
 
 class CommentListCreateView(ListCreateAPIView):
@@ -172,7 +183,7 @@ class CommentDetailUpdateDelete(RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == "GET":
             permission_classes = [IsAuthenticated, IsProjectContributor]
-        elif self.request.method == "PATCH":
+        elif self.request.method in ["PUT", "PATCH"]:
             permission_classes = [IsAuthenticated, IsCommentOwner]
         elif self.request.method == "DELETE":
             permission_classes = [

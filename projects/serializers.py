@@ -92,3 +92,24 @@ class ContributorCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contributor
         fields = ["user", "role"]
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        view = self.context.get("view")
+
+        # Only validate duplicates during creation (POST requests)
+        if request and request.method == "POST":
+            project_id = view.kwargs.get("project_id")
+            target_user = attrs.get("user")
+
+            exists = Contributor.objects.filter(
+                project_id=project_id, user=target_user, is_deleted=False
+            ).exists()
+
+            if exists:
+                raise serializers.ValidationError(
+                    {
+                        "user": "This user is already an active contributor to this project."
+                    }
+                )
+        return attrs

@@ -1,6 +1,7 @@
 from django.db import models
 from users.models import User
 from django.utils import timezone
+from django.db.models import Q
 
 
 class Project(models.Model):
@@ -78,6 +79,8 @@ class Contributor(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "project"], name="unique_project_contributor"
+                fields=["user", "project"],
+                name="unique_project_contributor",
+                condition=Q(is_deleted=False),
             )
         ]

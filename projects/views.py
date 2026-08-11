@@ -1,6 +1,4 @@
 from .models import Project, Contributor
-from django.utils.timezone import now
-from rest_framework.decorators import api_view, permission_classes
 from .serializers import (
     ProjectCreateSerializer,
     ProjectListSerializer,
@@ -8,10 +6,13 @@ from .serializers import (
     ContributorCreateUpdateSerializer,
     ContributorListSerializer,
 )
-from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
-from .permissions import IsProjectOwner, IsProjectAdmin
+from .permissions import IsProjectOwner, IsProjectAdmin, CanDeleteContributor
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from django.shortcuts import get_object_or_404
+from django.db.models import Q
+from django.core.exceptions import PermissionDenied
+from django.utils.timezone import now
 
 
 class ProjectListCreateView(ListCreateAPIView):
@@ -24,9 +25,9 @@ class ProjectListCreateView(ListCreateAPIView):
 
     def get_queryset(self):
         return Project.objects.filter(
-            contributors__user=self.request.user,
+            Q(contributors__user=self.request.user) | Q(owner=self.request.user),
             is_deleted=False,
-        ).distinct()  # Give me unique projects where the current user appears in the contributors table
+        ).distinct()
 
 
 class ProjectDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
@@ -36,14 +37,14 @@ class ProjectDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Project.objects.filter(
-            contributors__user=self.request.user,
+            Q(contributors__user=self.request.user) | Q(owner=self.request.user),
             is_deleted=False,
         ).distinct()
 
     def get_permissions(self):
         if self.request.method == "GET":
             permission_classes = [IsAuthenticated]
-        elif self.request.method == "PATCH":
+        elif self.request.method in ["PATCH", "PUT"]:
             permission_classes = [IsAuthenticated, IsProjectOwner | IsProjectAdmin]
         elif self.request.method == "DELETE":
             permission_classes = [IsAuthenticated, IsProjectOwner]
@@ -75,6 +76,18 @@ class ContributorListCreateView(ListCreateAPIView):
             is_deleted=False,
         ).distinct()
 
+    def perform_create(self, serializer):
+        project = get_object_or_404(
+            Project, pk=self.kwargs["project_id"], is_deleted=False
+        )
+        role = serializer.validated_data.get("role", "member")
+
+        # If trying to add an admin, restrict to project owner
+        if role == "admin" and project.owner != self.request.user:
+            raise PermissionDenied("Only the project owner can add administrators.")
+
+        serializer.save(project=project)
+
 
 class ContributorDetailUpdateDeleteViews(RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = "contributor_id"
@@ -95,11 +108,25 @@ class ContributorDetailUpdateDeleteViews(RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == "GET":
             permission_classes = [IsAuthenticated]
-        elif self.request.method == "PATCH":
-            permission_classes = [IsAuthenticated, IsProjectOwner]
+
+        elif self.request.method in ["PUT", "PATCH"]:
+            permission_classes = [
+                IsAuthenticated,
+                IsProjectOwner,
+            ]
+
         elif self.request.method == "DELETE":
-            permission_classes = [IsAuthenticated, IsProjectOwner | IsProjectAdmin]
+            permission_classes = [
+                IsAuthenticated,
+                CanDeleteContributor,
+            ]
+
         else:
             permission_classes = [IsAuthenticated]
 
         return [permission() for permission in permission_classes]
+
+    def perform_destroy(self, instance):
+        instance.is_deleted = True
+        instance.deleted_at = now()
+        instance.save(update_fields=["is_deleted", "deleted_at"])

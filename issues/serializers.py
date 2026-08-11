@@ -126,10 +126,17 @@ class IssueAssigneeListCreateSerializer(serializers.ModelSerializer):
             project=issue.project, user=user, is_deleted=False
         ).exists()
 
+        is_assigned = IssueAssignee.objects.filter(
+            issue=issue, user=user, is_deleted=False
+        ).exists()
+
         if not is_contributor:
             raise serializers.ValidationError(
                 "This user is not a contributor to this project."
             )
+
+        if is_assigned:
+            raise serializers.ValidationError("This user is already assigned.")
 
         return attrs
 
