@@ -11,6 +11,19 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         model = Project
         fields = ["name", "description"]
 
+    def validate(self, attrs):
+        request = self.context.get("request")
+
+        # Enforce the 20-project limit
+        if (
+            request
+            and Project.objects.filter(owner=request.user, is_deleted=False).count()
+            >= 20
+        ):
+            raise serializers.ValidationError("You cannot have more than 20 projects.")
+
+        return attrs
+
     def create(self, validated_data):
         request = self.context["request"]
         user = request.user

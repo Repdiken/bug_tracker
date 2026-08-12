@@ -23,7 +23,7 @@ class Project(models.Model):
         PAUSED = "paused", "Paused"
         ARCHIVED = "archived", "Archived"
 
-    state = models.CharField(choices=State.choices, default=State.ACTIVE)
+    state = models.CharField(choices=State.choices, default=State.ACTIVE, max_length=9)
 
     def delete(self, *args, **kwargs):
         from issues.models import Comment, IssueAssignee

@@ -1,5 +1,19 @@
 from rest_framework.permissions import BasePermission
 from .models import Project, Contributor
+from django.db.models import Q
+
+
+class IsProjectContributor(BasePermission):
+    def has_permission(self, request, view):
+        project_id = view.kwargs.get("project_id")
+
+        return Project.objects.filter(
+            Q(id=project_id)
+            & (
+                Q(owner=request.user)
+                | Q(contributors__user=request.user, contributors__is_deleted=False)
+            )
+        ).exists()
 
 
 class IsProjectOwner(BasePermission):

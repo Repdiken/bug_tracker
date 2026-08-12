@@ -1,4 +1,6 @@
 from .models import Project, Contributor
+from issues.models import Issue
+
 from .serializers import (
     ProjectCreateSerializer,
     ProjectListSerializer,
@@ -7,12 +9,19 @@ from .serializers import (
     ContributorListSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
-from .permissions import IsProjectOwner, IsProjectAdmin, CanDeleteContributor
+from .permissions import (
+    IsProjectOwner,
+    IsProjectAdmin,
+    CanDeleteContributor,
+    IsProjectContributor,
+)
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.core.exceptions import PermissionDenied
 from django.utils.timezone import now
+
+from django.db.models import Q, Prefetch
 
 
 class ProjectListCreateView(ListCreateAPIView):
@@ -36,20 +45,29 @@ class ProjectDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = "project_id"
 
     def get_queryset(self):
-        return Project.objects.filter(
-            Q(contributors__user=self.request.user) | Q(owner=self.request.user),
-            is_deleted=False,
-        ).distinct()
+        active_contributors = Contributor.objects.filter(is_deleted=False)
+        active_issues = Issue.objects.filter(is_deleted=False)
+
+        return (
+            Project.objects.filter(
+                Q(contributors__user=self.request.user) | Q(owner=self.request.user),
+                is_deleted=False,
+            )
+            .prefetch_related(
+                Prefetch("contributors", queryset=active_contributors),
+                Prefetch("issues", queryset=active_issues),
+            )
+            .distinct()
+            .order_by("-created_at")
+        )
 
     def get_permissions(self):
         if self.request.method == "GET":
             permission_classes = [IsAuthenticated]
         elif self.request.method in ["PATCH", "PUT"]:
             permission_classes = [IsAuthenticated, IsProjectOwner | IsProjectAdmin]
-        elif self.request.method == "DELETE":
-            permission_classes = [IsAuthenticated, IsProjectOwner]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, IsProjectOwner]
 
         return [permission() for permission in permission_classes]
 
@@ -58,7 +76,10 @@ class ContributorListCreateView(ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method == "GET":
-            permission_classes = [IsAuthenticated]
+            permission_classes = [
+                IsAuthenticated,
+                IsProjectContributor | IsProjectOwner,
+            ]
         else:
             permission_classes = [IsAuthenticated, IsProjectOwner | IsProjectAdmin]
         return [permission() for permission in permission_classes]
@@ -69,12 +90,19 @@ class ContributorListCreateView(ListCreateAPIView):
         return ContributorCreateUpdateSerializer
 
     def get_queryset(self):
-        return Contributor.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__contributors__user=self.request.user,
-            project__contributors__is_deleted=False,
-            is_deleted=False,
-        ).distinct()
+        return (
+            Contributor.objects.filter(
+                Q(project__owner=self.request.user)
+                | Q(
+                    project__contributors__user=self.request.user,
+                    project__contributors__is_deleted=False,
+                ),
+                project_id=self.kwargs["project_id"],
+                is_deleted=False,
+            )
+            .distinct()
+            .order_by("-created_at")
+        )
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -93,11 +121,18 @@ class ContributorDetailUpdateDeleteViews(RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = "contributor_id"
 
     def get_queryset(self):
-        return Contributor.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__contributors__user=self.request.user,
-            project__contributors__is_deleted=False,
-            is_deleted=False,
+        return (
+            Contributor.objects.filter(
+                Q(project__owner=self.request.user)
+                | Q(
+                    project__contributors__user=self.request.user,
+                    project__contributors__is_deleted=False,
+                ),
+                project_id=self.kwargs["project_id"],
+                is_deleted=False,
+            )
+            .distinct()
+            .order_by("-created_at")
         )
 
     def get_serializer_class(self):
@@ -107,7 +142,10 @@ class ContributorDetailUpdateDeleteViews(RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method == "GET":
-            permission_classes = [IsAuthenticated]
+            permission_classes = [
+                IsAuthenticated,
+                IsProjectContributor | IsProjectOwner,
+            ]
 
         elif self.request.method in ["PUT", "PATCH"]:
             permission_classes = [
