@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     ProjectListCreateView,
     ProjectDetailUpdateDeleteView,
+    ProjectOwnershipTransferView,
     ContributorListCreateView,
     ContributorDetailUpdateDeleteViews,
 )
@@ -22,5 +23,10 @@ urlpatterns = [
         "projects/<int:project_id>/contributors/<int:contributor_id>/",
         ContributorDetailUpdateDeleteViews.as_view(),
         name="project-contributor-detail",
+    ),
+    path(
+        "projects/<int:project_id>/transfer-ownership/",
+        ProjectOwnershipTransferView.as_view(),
+        name="project-transfer-ownership",
     ),
 ]

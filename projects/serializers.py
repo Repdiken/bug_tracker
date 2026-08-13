@@ -126,3 +126,38 @@ class ContributorCreateUpdateSerializer(serializers.ModelSerializer):
                     }
                 )
         return attrs
+
+
+class ProjectOwnershipTransferSerializer(serializers.Serializer):
+    new_owner = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.none()  # Default to empty, populated dynamically below
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Extract the project_id from the view kwargs in the context
+        view = self.context.get("view")
+        if view and "project_id" in view.kwargs:
+            project_id = view.kwargs["project_id"]
+
+            # Dynamically update the queryset to only include active project contributors
+            self.fields["new_owner"].queryset = User.objects.filter(
+                contributions__project_id=project_id, contributions__is_deleted=False
+            ).distinct()
+
+    def validate_new_owner(self, value):
+        # Retrieve the project_id from the view's URL kwargs
+        project_id = self.context["view"].kwargs.get("project_id")
+
+        # Ensure the target user is already an active contributor to this project
+        is_contributor = Contributor.objects.filter(
+            project_id=project_id, user=value, is_deleted=False
+        ).exists()
+
+        if not is_contributor:
+            raise serializers.ValidationError(
+                "The new owner must be an active contributor to this project."
+            )
+
+        return value

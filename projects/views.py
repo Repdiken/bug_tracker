@@ -7,6 +7,7 @@ from .serializers import (
     ProjectDetailSerializer,
     ContributorCreateUpdateSerializer,
     ContributorListSerializer,
+    ProjectOwnershipTransferSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
 from .permissions import (
@@ -15,13 +16,22 @@ from .permissions import (
     CanDeleteContributor,
     IsProjectContributor,
 )
-from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from django.shortcuts import get_object_or_404
-from django.db.models import Q
-from django.core.exceptions import PermissionDenied
-from django.utils.timezone import now
 
-from django.db.models import Q, Prefetch
+from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from django.core.exceptions import PermissionDenied
+
+from rest_framework.generics import (
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
+    GenericAPIView,
+)
+from rest_framework.views import APIView
+
+from django.db.models import Prefetch, Q
+
+from django.utils.timezone import now
 
 
 class ProjectListCreateView(ListCreateAPIView):
@@ -70,6 +80,46 @@ class ProjectDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
             permission_classes = [IsAuthenticated, IsProjectOwner]
 
         return [permission() for permission in permission_classes]
+
+
+class ProjectOwnershipTransferView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsProjectOwner]
+    serializer_class = ProjectOwnershipTransferSerializer
+
+    def post(self, request, project_id):
+        # 1. Fetch the project and verify ownership permissions
+        project = get_object_or_404(Project, pk=project_id, is_deleted=False)
+        # has_object_permission for every permission class assigned at the top
+        self.check_object_permissions(request, project)
+
+        # 2. Validate the payload using our new serializer
+        serializer = ProjectOwnershipTransferSerializer(
+            data=request.data, context={"view": self}
+        )  # Send the context o the serializer to give it access to data outside the model fields
+        # such as the currently logged-in user, URL parameters, or request headers
+        serializer.is_valid(raise_exception=True)
+        new_owner = serializer.validated_data["new_owner"]
+
+        # Prevent transferring to themselves
+        if new_owner == project.owner:
+            return Response(
+                {"detail": "You are already the owner of this project."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        # 3. Ensure the new owner has admin privileges in the contributors table
+        Contributor.objects.filter(
+            project=project, user=new_owner, is_deleted=False
+        ).update(role="admin")
+
+        # 4. Transfer ownership
+        project.owner = new_owner
+        project.save(update_fields=["owner"])
+
+        return Response(
+            {"detail": f"Ownership successfully transferred to {new_owner.username}."},
+            status=HTTP_200_OK,
+        )
 
 
 class ContributorListCreateView(ListCreateAPIView):
