@@ -5,6 +5,7 @@ from .views import (
     ProjectOwnershipTransferView,
     ContributorListCreateView,
     ContributorDetailUpdateDeleteViews,
+    LeaveProjectView,
 )
 
 urlpatterns = [
@@ -28,5 +29,10 @@ urlpatterns = [
         "projects/<int:project_id>/transfer-ownership/",
         ProjectOwnershipTransferView.as_view(),
         name="project-transfer-ownership",
+    ),
+    path(
+        "projects/<int:project_id>/leave/",
+        LeaveProjectView.as_view(),
+        name="project-leave",
     ),
 ]

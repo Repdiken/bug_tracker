@@ -44,9 +44,10 @@ class ProjectListCreateView(ListCreateAPIView):
 
     def get_queryset(self):
         return Project.objects.filter(
-            Q(contributors__user=self.request.user) | Q(owner=self.request.user),
+            Q(contributors__user=self.request.user, contributors__is_deleted=False)
+            | Q(owner=self.request.user),
             is_deleted=False,
-        ).distinct()
+        ).distinct()  # .filter methods joins using AND, if you need to perform an OR or a NOT operation, Q comes in
 
 
 class ProjectDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
@@ -60,7 +61,8 @@ class ProjectDetailUpdateDeleteView(RetrieveUpdateDestroyAPIView):
 
         return (
             Project.objects.filter(
-                Q(contributors__user=self.request.user) | Q(owner=self.request.user),
+                Q(contributors__user=self.request.user, contributors__is_deleted=False)
+                | Q(owner=self.request.user),
                 is_deleted=False,
             )
             .prefetch_related(
@@ -118,6 +120,37 @@ class ProjectOwnershipTransferView(GenericAPIView):
 
         return Response(
             {"detail": f"Ownership successfully transferred to {new_owner.username}."},
+            status=HTTP_200_OK,
+        )
+
+
+class LeaveProjectView(APIView):
+    permission_classes = [IsAuthenticated, IsProjectContributor]
+
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, pk=project_id, is_deleted=False)
+
+        # Block the owner from leaving
+        if project.owner == request.user:
+            return Response(
+                {
+                    "detail": "Project owners cannot leave their own projects. You must transfer ownership or delete the project."
+                },
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        # Fetch the requester's contributor record
+        contributor = get_object_or_404(
+            Contributor, project=project, user=request.user, is_deleted=False
+        )
+
+        # Soft-delete their contributor record
+        contributor.is_deleted = True
+        contributor.deleted_at = now()
+        contributor.save(update_fields=["is_deleted", "deleted_at"])
+
+        return Response(
+            {"detail": "You have successfully left the project."},
             status=HTTP_200_OK,
         )
 
