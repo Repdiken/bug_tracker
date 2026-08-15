@@ -1,16 +1,5 @@
 from rest_framework.permissions import BasePermission
-from projects.models import Project
 from .models import IssueAssignee
-from django.db.models import Q
-
-
-class IsProjectContributor(BasePermission):
-    def has_permission(self, request, view):
-        project_id = view.kwargs.get("project_id")
-        return Project.objects.filter(
-            Q(id=project_id)
-            & (Q(contributors__user=request.user) | Q(owner=request.user))
-        ).exists()
 
 
 class IsIssueAssignee(BasePermission):
