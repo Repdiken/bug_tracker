@@ -46,6 +46,10 @@ Users can
 - View projects they belong to
 - Update their own projects
 - Soft delete projects
+- Project owners can transfer their ownership to an active project contributor.
+- Standard members and admins can leave a project at any time, which soft-deletes their contributor record.
+- Project owners are blocked from leaving a project; they must transfer ownership or delete the project entirely
+- A strict validation limit enforces that a single user cannot own more than 20 active projects.
 
 Every project has a single owner.
 
@@ -156,8 +160,8 @@ For example
 |------------|---------------|
 | View project | Contributor |
 | Create contributor | Owner/Admin |
-| Update contributor | Owner/Admin |
-| Delete contributor | Owner |
+| Update contributor | Owner |
+| Delete contributor | Owner/Admin (Members only) |
 | Create issue | Admin/Owner |
 | Assign users | Admin/Owner |
 | Comment on issue | Assigned user |
@@ -347,6 +351,14 @@ projects/<project_id>/
 ├── GET
 ├── PATCH
 └── DELETE
+
+projects/<project_id>/transfer-ownership/
+│
+└── POST
+
+projects/<project_id>/leave/
+│
+└── POST
 
 projects/<project_id>/contributors/
 │
@@ -538,7 +550,6 @@ Possible future enhancements include
 - Issue status workflow
 - Project archiving
 - API documentation (Swagger/OpenAPI)
-- Automated testing
 - Docker support
 - PostgreSQL deployment
 - CI/CD pipeline
